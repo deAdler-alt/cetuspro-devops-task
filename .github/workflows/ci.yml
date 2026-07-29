@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r app/requirements.txt -r requirements-dev.txt
+
+      - name: Lint with ruff
+        run: ruff check app/ tests/
+
+      - name: Run tests
+        run: python -m pytest tests/ -v
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t cetuspro-devops-task:ci .
+
+      - name: Smoke test - container starts and responds
+        run: |
+          docker network create ci-net
+          docker run -d --name redis --network ci-net redis:7-alpine
+          docker run -d --name app --network ci-net \
+            -e REDIS_HOST=redis -p 8000:8000 cetuspro-devops-task:ci
+          sleep 5
+          curl --fail http://localhost:8000/health
