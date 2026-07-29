@@ -1,0 +1,1 @@
+# cetuspro-devops-task
